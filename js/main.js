@@ -1,98 +1,159 @@
-//feather.replace();
+const BOT_NAME = "Health Bot";
+const PERSON_NAME = "You";
+const msgerForm = get(".msger-inputarea");
+const msgerInput = get(".msger-input");
+const msgerChat = get(".msger-chat");
+var responseNum = 0;
+let responseNew = true;
+let socket = new WebSocket("ws://localhost:3001");
 
-const controls = document.querySelector('.controls');
-const cameraOptions = document.querySelector('.video-options>select');
-const video = document.querySelector('video');
-const canvas = document.querySelector('canvas');
-const screenshotImage = document.querySelector('img');
-const buttons = [...controls.querySelectorAll('button')];
-let streamStarted = false;
-
-const [play, pause, screenshot] = buttons;
-
-const constraints = {
-  video: {
-    width: {
-      min: 1280,
-      ideal: 1920,
-      max: 2560,
-    },
-    height: {
-      min: 720,
-      ideal: 1080,
-      max: 1440
-    },
-  }
+socket.onopen = function (e) {
+  console.log("[open] Connection established");
 };
 
-cameraOptions.onchange = () => {
-  const updatedConstraints = {
-    ...constraints,
-    deviceId: {
-      exact: cameraOptions.value
+socket.onmessage = function (event) {
+  console.log(`[message] Data received from server: ${event.data}`);
+  let response = event.data;
+  try { document.querySelector(".waiting").remove(); } catch (e) { }
+  if (response == "<EndOfStream>") {
+    responseNew = true;
+    responseNum += 1;
+  } else {
+    if (responseNew) {
+      startResponse(BOT_NAME, response);
+      responseNew = false;
+    } else {
+      streamResponse(response);
     }
-  };
-
-  startStream(updatedConstraints);
-};
-
-play.onclick = () => {
-  if (streamStarted) {
-    video.play();
-    play.classList.add('d-none');
-    pause.classList.remove('d-none');
-    return;
-  }
-  if ('mediaDevices' in navigator && navigator.mediaDevices.getUserMedia) {
-    const updatedConstraints = {
-      ...constraints,
-      deviceId: {
-        exact: cameraOptions.value
-      }
-    };
-    startStream(updatedConstraints);
   }
 };
 
-const pauseStream = () => {
-  video.pause();
-  play.classList.remove('d-none');
-  pause.classList.add('d-none');
+function streamResponse(chunk) {
+  currentResponse = document.querySelector("#response-" + responseNum).innerHTML;
+  str = chunk.replace(/\n\n/g, "<br/>");
+  str = str.replace(/\n/g, "<br/>");
+  document.querySelector("#response-" + responseNum).innerHTML += str;
+  msgerChat.scrollTop += 500;
+}
+
+socket.onclose = function (event) {
+  if (event.wasClean) {
+    console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+  } else {
+    console.log('[close] Connection died');
+  }
 };
 
-const doScreenshot = () => {
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video, 0, 0);
-  screenshotImage.src = canvas.toDataURL('image/webp');
-  screenshotImage.classList.remove('d-none');
+socket.onerror = function (error) {
+  console.log(`[error]`);
 };
 
-pause.onclick = pauseStream;
-screenshot.onclick = doScreenshot;
+msgerForm.addEventListener("submit", event => {
+  event.preventDefault();
 
-const startStream = async (constraints) => {
-  const stream = await navigator.mediaDevices.getUserMedia(constraints);
-  handleStream(stream);
-};
+  const msgText = msgerInput.value;
+  if (!msgText) return;
+
+  let jsonMsg = { "message": msgText, "file_name": "sample.jpg" }
+  socket.send(JSON.stringify(jsonMsg));
+
+  createRequest(PERSON_NAME, msgText);
+  msgerInput.value = "";
+
+  appendWaiting(BOT_NAME);
+  
+});
+
+function createRequest(name, text) {
+  //   Simple solution for small apps
+  const msgHTML = `
+    <div class="msg right-msg">
+      <div class="msg-img">
+        <i class="fas fa-user"></i>
+      </div>
+
+      <div class="msg-bubble">
+        <div class="msg-info">
+          <div class="msg-info-name">${name}</div>
+          <div class="msg-info-time">${formatDate(new Date())}</div>
+        </div>
+
+        <div class="msg-text" id="request-${responseNum}">${text}</div>
+      </div>
+    </div>
+  `;
+
+  msgerChat.insertAdjacentHTML("beforeend", msgHTML);
+  msgerChat.scrollTop += 500;
+  document.querySelector("#request-"+responseNum).parentElement.addEventListener("click", () => { 
+    console.log("clicked");
+    document.querySelector("#question").value = text;  
+  });  
+}
+
+function startResponse(name, text) {
+  const msgHTML = `
+    <div class="msg left-msg">
+      <div class="msg-img">
+        <i class="fas fa-circle-question"></i>
+      </div>
+
+      <div class="msg-bubble">
+        <div class="msg-info">
+          <div class="msg-info-name">${name}</div>
+          <div class="msg-info-time">${formatDate(new Date())}</div>
+        </div>
+
+        <div class="msg-text" id="response-${responseNum}">${text}</div>
+      </div>
+    </div>
+  `;
+  msgerChat.insertAdjacentHTML("beforeend", msgHTML);
+  msgerChat.scrollTop += 500;
+  var rid = "#response-"+responseNum;
+  document.querySelector("#response-"+responseNum).parentElement.addEventListener("click", (event) => { 
+    console.log("clicked");
+    navigator.clipboard.writeText(document.querySelector(rid).innerHTML);  
+  });    
+}
 
 
-const handleStream = (stream) => {
-  video.srcObject = stream;
-  play.classList.add('d-none');
-  pause.classList.remove('d-none');
-  screenshot.classList.remove('d-none');
+function appendWaiting(name) {
+  //   Simple solution for small apps
 
-};
+  const msgWaiting = `
+    <div class="msg left-msg waiting">
+      <div class="msg-img">
+        <i class="fas fa-circle-question"></i>
+      </div>
 
+      <div class="msg-bubble">
+        <div class="msg-info">
+          <div class="msg-info-name">${name}</div>
+        </div>
 
-const getCameraSelection = async () => {
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const videoDevices = devices.filter(device => device.kind === 'videoinput');
-  const options = videoDevices.map(videoDevice => {
-    return `<option value="${videoDevice.deviceId}">${videoDevice.label}</option>`;
-  });
-  cameraOptions.innerHTML = options.join('');
-};
+        <div class="msg-text">
+          <div class="loader-container">
+            <div class="loader">
+              <div></div>
+              <div></div>
+              <div></div>
+            </div>
+          </div>        
+        </div>
+      </div>
+    </div>
+  `;
 
-getCameraSelection();
+  msgerChat.insertAdjacentHTML("beforeend", msgWaiting);
+  msgerChat.scrollTop += 500;
+}
+
+// Utils
+function get(selector, root = document) {
+  return root.querySelector(selector);
+}
+
+function formatDate(date) {
+  return date.toLocaleTimeString();
+}
