@@ -5,68 +5,51 @@ const msgerInput = get(".msger-input");
 const msgerChat = get(".msger-chat");
 var responseNum = 0;
 let responseNew = true;
-let socket = new WebSocket("ws://localhost:3001");
+const API_URL = 'https://127.0.0.1:3000';
 
-socket.onopen = function (e) {
-  console.log("[open] Connection established");
-};
-
-socket.onmessage = function (event) {
-  console.log(`[message] Data received from server: ${event.data}`);
-  let response = event.data;
-  try { document.querySelector(".waiting").remove(); } catch (e) { }
-  if (response == "<EndOfStream>") {
-    responseNew = true;
-    responseNum += 1;
-  } else {
-    if (responseNew) {
-      startResponse(BOT_NAME, response);
-      responseNew = false;
-    } else {
-      streamResponse(response);
-    }
-  }
-};
-
-function streamResponse(chunk) {
-  currentResponse = document.querySelector("#response-" + responseNum).innerHTML;
-  str = chunk.replace(/\n\n/g, "<br/>");
-  str = str.replace(/\n/g, "<br/>");
-  document.querySelector("#response-" + responseNum).innerHTML += str;
-  msgerChat.scrollTop += 500;
+function sendRequest(URL, payload) {
+    fetch(URL, payload)
+        .then(response => {
+            if (!response.ok) {
+                console.log('Network response was not ok');
+            }
+            console.log(response.json);
+        })
+        .then(data => {
+            return data;
+        })
+        .catch(error => {
+            console.log('Error:', error);
+        });
 }
 
-socket.onclose = function (event) {
-  if (event.wasClean) {
-    console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
-  } else {
-    console.log('[close] Connection died');
-  }
-};
-
-socket.onerror = function (error) {
-  console.log(`[error]`);
-};
+function streamResponse(chunk) {
+    currentResponse = document.querySelector("#response-" + responseNum).innerHTML;
+    str = chunk.replace(/\n\n/g, "<br/>");
+    str = str.replace(/\n/g, "<br/>");
+    document.querySelector("#response-" + responseNum).innerHTML += str;
+    msgerChat.scrollTop += 500;
+}
 
 msgerForm.addEventListener("submit", event => {
-  event.preventDefault();
+    event.preventDefault();
 
-  const msgText = msgerInput.value;
-  if (!msgText) return;
+    const msgText = msgerInput.value;
+    if (!msgText) return;
 
-  let jsonMsg = { "message": msgText, "file_name": "sample.jpg" }
-  socket.send(JSON.stringify(jsonMsg));
+    let jsonMsg = { method: 'POST', headers: {'Content-Type': 'application/json'}, body: {message: msgText}};
+    sendRequest(JSON.stringify(jsonMsg));
 
-  createRequest(PERSON_NAME, msgText);
-  msgerInput.value = "";
+    createRequest(PERSON_NAME, msgText);
+    msgerInput.value = "";
 
-  appendWaiting(BOT_NAME);
-  
+    appendWaiting(BOT_NAME);
+
 });
 
 function createRequest(name, text) {
-  //   Simple solution for small apps
-  const msgHTML = `
+    //   Simple solution for small apps
+    const msgHTML = `
     <div class="msg right-msg">
       <div class="msg-img">
         <i class="fas fa-user"></i>
@@ -83,16 +66,16 @@ function createRequest(name, text) {
     </div>
   `;
 
-  msgerChat.insertAdjacentHTML("beforeend", msgHTML);
-  msgerChat.scrollTop += 500;
-  document.querySelector("#request-"+responseNum).parentElement.addEventListener("click", () => { 
-    console.log("clicked");
-    document.querySelector("#question").value = text;  
-  });  
+    msgerChat.insertAdjacentHTML("beforeend", msgHTML);
+    msgerChat.scrollTop += 500;
+    document.querySelector("#request-" + responseNum).parentElement.addEventListener("click", () => {
+        console.log("clicked");
+        document.querySelector("#question").value = text;
+    });
 }
 
 function startResponse(name, text) {
-  const msgHTML = `
+    const msgHTML = `
     <div class="msg left-msg">
       <div class="msg-img">
         <i class="fas fa-circle-question"></i>
@@ -108,20 +91,20 @@ function startResponse(name, text) {
       </div>
     </div>
   `;
-  msgerChat.insertAdjacentHTML("beforeend", msgHTML);
-  msgerChat.scrollTop += 500;
-  var rid = "#response-"+responseNum;
-  document.querySelector("#response-"+responseNum).parentElement.addEventListener("click", (event) => { 
-    console.log("clicked");
-    navigator.clipboard.writeText(document.querySelector(rid).innerHTML);  
-  });    
+    msgerChat.insertAdjacentHTML("beforeend", msgHTML);
+    msgerChat.scrollTop += 500;
+    var rid = "#response-" + responseNum;
+    document.querySelector("#response-" + responseNum).parentElement.addEventListener("click", (event) => {
+        console.log("clicked");
+        navigator.clipboard.writeText(document.querySelector(rid).innerHTML);
+    });
 }
 
 
 function appendWaiting(name) {
-  //   Simple solution for small apps
+    //   Simple solution for small apps
 
-  const msgWaiting = `
+    const msgWaiting = `
     <div class="msg left-msg waiting">
       <div class="msg-img">
         <i class="fas fa-circle-question"></i>
@@ -145,15 +128,15 @@ function appendWaiting(name) {
     </div>
   `;
 
-  msgerChat.insertAdjacentHTML("beforeend", msgWaiting);
-  msgerChat.scrollTop += 500;
+    msgerChat.insertAdjacentHTML("beforeend", msgWaiting);
+    msgerChat.scrollTop += 500;
 }
 
 // Utils
 function get(selector, root = document) {
-  return root.querySelector(selector);
+    return root.querySelector(selector);
 }
 
 function formatDate(date) {
-  return date.toLocaleTimeString();
+    return date.toLocaleTimeString();
 }
